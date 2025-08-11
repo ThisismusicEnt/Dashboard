@@ -35,9 +35,10 @@
         .panel-title svg { width: 1.25rem; height: 1.25rem; margin-right: 0.75rem; }
         .panel-content { 
             flex-grow: 1; 
-            overflow-y: auto; 
-            overflow-x: hidden;
+            overflow: hidden; /* Changed from auto to hidden */
             min-height: 0; /* CRITICAL FIX for flexbox children */
+            display: flex; /* Added for consistency */
+            flex-direction: column; /* Added for consistency */
         }
         .pro-button {
             background: rgba(79, 70, 229, 0.8); color: white; font-weight: 500; padding: 0.5rem 1rem; border-radius: 0.5rem;
@@ -92,22 +93,22 @@
         <button id="sidebar-toggle" class="md:hidden fixed top-4 left-4 z-50 p-2 bg-slate-800 rounded-md">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
         </button>
-        <div id="dashboard-grid" class="p-4 grid grid-cols-1 lg:grid-cols-3 gap-6"></div>
+        <div id="dashboard-grid" class="p-4 grid grid-cols-1 lg:grid-cols-4 gap-6"></div>
     </div>
     
     <!-- Panel Templates -->
     <template id="panel-template-editor-suite">
-        <div class="panel lg:col-span-1 lg:row-span-2">
+        <div class="panel lg:col-span-2 lg:row-span-2">
             <h2 class="panel-title"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M17.25,3.3C16.7,2.75,15.82,2.75,15.27,3.3L6.09,12.48L2,18.59L5.41,22L11.52,17.91L20.7,8.73C21.25,8.18,21.25,7.3,20.7,6.75L17.25,3.3M16.06,7.92L14.59,9.39L16.5,11.3L18.41,9.39L16.5,7.47L14.59,5.56L16.06,4.09L18.41,6.44L16.06,7.92Z"></path></svg>Editor Suite</h2>
             <div class="editor-tabs flex space-x-1 bg-slate-700/50 p-1 rounded-lg mb-4 flex-shrink-0">
                 <button data-tab="word" class="tab-button px-3 py-1 text-sm font-medium rounded-md active">Word</button>
                 <button data-tab="excel" class="tab-button px-3 py-1 text-sm font-medium rounded-md">Excel</button>
                 <button data-tab="calendar" class="tab-button px-3 py-1 text-sm font-medium rounded-md">Calendar</button>
             </div>
-            <div class="panel-content flex flex-col">
+            <div class="panel-content">
                 <div class="tab-content flex-grow flex flex-col" data-tab-content="word">
-                    <div class="editor-toolbar"><button onclick="document.execCommand('bold')" class="font-bold">B</button> <button onclick="document.execCommand('italic')" class="italic">I</button></div>
-                    <div class="editor-container flex-grow" contenteditable="true"></div>
+                    <div class="editor-toolbar flex-shrink-0"><button onclick="document.execCommand('bold')" class="font-bold">B</button> <button onclick="document.execCommand('italic')" class="italic">I</button></div>
+                    <div class="editor-container flex-grow overflow-auto" contenteditable="true"></div>
                 </div>
                 <div class="tab-content hidden flex-grow flex flex-col" data-tab-content="excel">
                     <div class="editor-container flex-grow overflow-auto"><table class="excel-grid w-full"></table></div>
@@ -182,7 +183,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const panelToggleList = document.getElementById('panel-toggle-list');
     
     const availablePanels = [
-        { id: 'editor-suite', name: 'Editor Suite', default: true, colSpan: 1, rowSpan: 2 },
+        { id: 'editor-suite', name: 'Editor Suite', default: true, colSpan: 2, rowSpan: 2 },
         { id: 'idea-mapper', name: 'Idea Mapper', default: true, colSpan: 2, rowSpan: 2 },
         { id: 'data-analysis', name: 'Data Analysis', default: true, colSpan: 1, rowSpan: 1 },
         { id: 'quick-links', name: 'Quick Links', default: true, colSpan: 1, rowSpan: 1 },
@@ -395,6 +396,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Excel Module ---
     const excelModule = {
         init: (grid) => {
+            if (!grid) return;
             // Create headers
             const headerRow = document.createElement('tr');
             headerRow.innerHTML = '<th></th>' + Array.from({length: 10}, (_, i) => `<th>${String.fromCharCode(65 + i)}</th>`).join('');
