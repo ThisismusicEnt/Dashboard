@@ -429,29 +429,30 @@ document.addEventListener('DOMContentLoaded', () => {
             render();
         };
 
+        const addNode = (nodeData) => {
+            const nodeEl = document.createElement('div');
+            nodeEl.id = nodeData.id;
+            nodeEl.className = 'mapper-node';
+            nodeEl.style.left = `${nodeData.x}px`;
+            nodeEl.style.top = `${nodeData.y}px`;
+            nodeEl.textContent = nodeData.text;
+            wrapper.appendChild(nodeEl);
+            
+            new PlainDraggable(nodeEl, {
+                containment: wrapper,
+                onMove: () => lines.forEach(l => l.position()),
+                onDragEnd: (e) => {
+                    nodeData.x = e.left; nodeData.y = e.top;
+                    save();
+                }
+            });
+        };
+
         const render = () => {
             if (!wrapper) return;
             wrapper.innerHTML = ''; // Clear previous nodes
             lines.forEach(line => line.remove()); lines = [];
-
-            nodes.forEach(nodeData => {
-                const nodeEl = document.createElement('div');
-                nodeEl.id = nodeData.id;
-                nodeEl.className = 'mapper-node';
-                nodeEl.style.left = `${nodeData.x}px`;
-                nodeEl.style.top = `${nodeData.y}px`;
-                nodeEl.textContent = nodeData.text;
-                wrapper.appendChild(nodeEl);
-                
-                new PlainDraggable(nodeEl, {
-                    containment: wrapper,
-                    onMove: () => lines.forEach(l => l.position()),
-                    onDragEnd: (e) => {
-                        nodeData.x = e.left; nodeData.y = e.top;
-                        save();
-                    }
-                });
-            });
+            nodes.forEach(addNode);
             drawConnectors();
         };
 
@@ -469,8 +470,10 @@ document.addEventListener('DOMContentLoaded', () => {
             init: (panelNode) => {
                 wrapper = panelNode.querySelector('.idea-mapper-wrapper');
                 panelNode.querySelector('.add-node-btn').onclick = () => {
-                    nodes.push({ id: `node-${Date.now()}`, x: 20, y: 20, text: 'New Idea' });
-                    render(); save();
+                    const newNodeData = { id: `node-${Date.now()}`, x: 20, y: 20, text: 'New Idea' };
+                    nodes.push(newNodeData);
+                    addNode(newNodeData); // Only add the new node
+                    save();
                 };
                 panelNode.querySelector('.connect-node-btn').onclick = (e) => {
                     state.connecting = !state.connecting;
