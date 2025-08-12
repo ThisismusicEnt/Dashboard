@@ -55,6 +55,14 @@
             z-index: 10;
         }
         .mapper-node:active { cursor: grabbing; z-index: 11; }
+        .mapper-node .delete-node {
+            position: absolute; top: -8px; right: -8px; width: 20px; height: 20px;
+            background-color: #ef4444; color: white; border-radius: 50%;
+            display: none; align-items: center; justify-content: center;
+            cursor: pointer; font-size: 14px; line-height: 20px;
+            border: 2px solid #1e293b;
+        }
+        .mapper-node:hover .delete-node { display: flex; }
         .leader-line { z-index: 5; }
 
         .file-toolbar { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; flex-shrink: 0; }
