@@ -53,13 +53,16 @@
         .idea-mapper-wrapper { position: relative; overflow: hidden; background-color: var(--bg-primary); border-radius: 0.5rem; border: 1px solid var(--border-color); }
         .mapper-node {
             position: absolute;
-            background: rgba(42, 42, 42, 0.5); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+            background: linear-gradient(135deg, rgba(42,42,42,0.6), rgba(30,30,30,0.6));
+            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
             color: white; padding: 0.75rem 1.5rem; border-radius: 0.75rem;
             cursor: grab; user-select: none; min-width: 150px; text-align: center;
             border: 1px solid rgba(250, 204, 21, 0.3);
             box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
             z-index: 10;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
+        .mapper-node:hover { transform: scale(1.05); box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5); }
         .mapper-node:active { cursor: grabbing; z-index: 11; }
         .mapper-node .delete-node {
             position: absolute; top: -8px; right: -8px; width: 20px; height: 20px;
@@ -106,7 +109,7 @@
     <!-- Panel Templates -->
     <template id="panel-template-editor-suite">
         <div class="panel h-full">
-            <h2 class="panel-title"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M17.25,3.3C16.7,2.75,15.82,2.75,15.27,3.3L6.09,12.48L2,18.59L5.41,22L11.52,17.91L20.7,8.73C21.25,8.18,21.25,7.3,20.7,6.75L17.25,3.3M16.06,7.92L14.59,9.39L16.5,11.3L18.41,9.39L16.5,7.47L14.59,5.56L16.06,4.09L18.41,6.44L16.06,7.92Z"></path></svg>Editor Suite</h2>
+            <h2 class="panel-title">Editor Suite</h2>
             <div class="file-toolbar"><button class="file-new">New</button><button class="file-save">Save</button><button class="file-open">Open</button><button class="file-undo">Undo</button><button class="file-redo">Redo</button></div>
             <div class="editor-tabs flex space-x-1 bg-slate-700/50 p-1 rounded-lg mb-4 flex-shrink-0">
                 <button data-tab="word" class="tab-button px-3 py-1 text-sm font-medium rounded-md active">Word</button>
@@ -536,7 +539,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Idea Mapper Module (using libraries) ---
     const ideaMapperModule = (() => {
         let wrapper, nodes = [], connectors = [], lines = [];
+        let history = [], future = [];
         let state = { connecting: false, startNode: null };
+
+        const pushState = () => {
+            history.push(JSON.stringify({ nodes, connectors }));
+            if (history.length > 50) history.shift();
+            future = [];
+        };
 
         const save = () => localStorage.setItem('mapperData', JSON.stringify({ nodes, connectors }));
         const load = () => {
@@ -547,6 +557,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 nodes = [{ id: `node-${Date.now()}`, x: 50, y: 50, text: 'Start Here' }];
             }
             render();
+            pushState();
         };
         
         const addNode = (nodeData) => {
@@ -561,6 +572,7 @@ document.addEventListener('DOMContentLoaded', () => {
             deleteBtn.textContent = '×';
             deleteBtn.onclick = (e) => {
                 e.stopPropagation();
+                pushState();
                 wrapper.removeChild(nodeEl);
                 nodes = nodes.filter(n => n.id !== nodeData.id);
                 connectors = connectors.filter(c => c.from !== nodeData.id && c.to !== nodeData.id);
@@ -572,6 +584,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             new PlainDraggable(nodeEl, {
                 containment: wrapper,
+                onDragStart: () => pushState(),
                 onMove: () => lines.forEach(l => l.position()),
                 onDragEnd: (e) => {
                     const node = nodes.find(n => n.id === e.target.id);
@@ -605,7 +618,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return {
             init: (panelNode) => {
                 wrapper = panelNode.querySelector('.idea-mapper-wrapper');
+                const toolbar = panelNode.querySelector('.file-toolbar');
                 panelNode.querySelector('.add-node-btn').onclick = () => {
+                    pushState();
                     const newNodeData = { id: `node-${Date.now()}`, x: 20, y: 20, text: 'New Idea' };
                     nodes.push(newNodeData);
                     addNode(newNodeData);
@@ -627,12 +642,66 @@ document.addEventListener('DOMContentLoaded', () => {
                         link.click();
                     });
                 };
+                toolbar.querySelector('.file-new').onclick = () => {
+                    pushState();
+                    nodes = [{ id: `node-${Date.now()}`, x: 50, y: 50, text: 'Start Here' }];
+                    connectors = [];
+                    render();
+                    save();
+                };
+                toolbar.querySelector('.file-save').onclick = () => {
+                    const blob = new Blob([JSON.stringify({ nodes, connectors })], { type: 'application/json' });
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = 'idea-map.json';
+                    a.click();
+                    URL.revokeObjectURL(a.href);
+                };
+                toolbar.querySelector('.file-open').onclick = () => {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = '.json';
+                    input.onchange = e => {
+                        const file = e.target.files[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = ev => {
+                            pushState();
+                            const data = JSON.parse(ev.target.result);
+                            nodes = data.nodes || [];
+                            connectors = data.connectors || [];
+                            render();
+                            save();
+                        };
+                        reader.readAsText(file);
+                    };
+                    input.click();
+                };
+                toolbar.querySelector('.file-undo').onclick = () => {
+                    if (!history.length) return;
+                    future.push(JSON.stringify({ nodes, connectors }));
+                    const prev = JSON.parse(history.pop());
+                    nodes = prev.nodes || [];
+                    connectors = prev.connectors || [];
+                    render();
+                    save();
+                };
+                toolbar.querySelector('.file-redo').onclick = () => {
+                    if (!future.length) return;
+                    history.push(JSON.stringify({ nodes, connectors }));
+                    const next = JSON.parse(future.pop());
+                    nodes = next.nodes || [];
+                    connectors = next.connectors || [];
+                    render();
+                    save();
+                };
                 wrapper.addEventListener('click', (e) => {
                     if (state.connecting && e.target.classList.contains('mapper-node')) {
                         if (!state.startNode) {
                             state.startNode = e.target;
                             e.target.style.boxShadow = '0 0 0 3px #34d399';
                         } else if (state.startNode !== e.target) {
+                            pushState();
                             connectors.push({ from: state.startNode.id, to: e.target.id });
                             drawConnectors(); save();
                             panelNode.querySelector('.connect-node-btn').click();
@@ -643,6 +712,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (e.target.classList.contains('mapper-node')) {
                         const newText = prompt('Enter new text:', e.target.firstChild.textContent);
                         if (newText !== null && newText.trim() !== '') {
+                            pushState();
                             e.target.firstChild.textContent = newText;
                             nodes.find(n => n.id === e.target.id).text = newText;
                             save();
