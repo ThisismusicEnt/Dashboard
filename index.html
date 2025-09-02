@@ -27,8 +27,24 @@
         html, body { height: 100%; overflow-x: hidden; overflow-y: auto; }
         body { font-family: 'Inter', sans-serif; background-color: var(--bg-primary); color: var(--text-primary); }
         
-        #sidebar { background-color: var(--bg-secondary); border-right: 1px solid var(--border-color); transition: transform 0.3s ease-in-out; z-index: 50; }
+        #sidebar {
+            background: linear-gradient(180deg, rgba(30,30,30,0.85), rgba(10,10,10,0.85));
+            border-right: 1px solid var(--border-color);
+            transition: transform 0.3s ease-in-out;
+            z-index: 50;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
         #main-content { transition: margin-left 0.3s ease-in-out; height: 100vh; }
+
+        /* Vista-like widget styling */
+        .widget {
+            background: linear-gradient(135deg, rgba(255,255,255,0.15), rgba(255,255,255,0.05));
+            border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
         
         .panel {
             background: var(--bg-panel);
@@ -136,7 +152,7 @@
     </template>
     
     <template id="sidebar-tool-template">
-        <div class="sidebar-tool bg-slate-800 p-3 rounded-lg cursor-grab">
+        <div class="sidebar-tool widget p-3 rounded-lg cursor-grab">
             <h3 class="font-semibold text-yellow-300"></h3>
             <div class="sidebar-tool-content mt-2"></div>
         </div>
@@ -465,6 +481,8 @@ document.addEventListener('DOMContentLoaded', () => {
         let calendarData = {};
         let panelNode;
 
+        currentDate.setDate(1);
+
         const load = () => { calendarData = JSON.parse(localStorage.getItem('calendarData')) || {}; };
 
         const render = () => {
@@ -473,10 +491,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const monthYearDisplay = panelNode.querySelector('.month-year-display');
             if (!calendarBody || !monthYearDisplay) return;
 
-            calendarBody.innerHTML = ''; currentDate.setDate(1);
+            calendarBody.innerHTML = '';
             const month = currentDate.getMonth(), year = currentDate.getFullYear();
             monthYearDisplay.textContent = `${currentDate.toLocaleString('default', { month: 'long' })} ${year}`;
-            const firstDayIndex = currentDate.getDay(), lastDay = new Date(year, month + 1, 0).getDate();
+            const firstDayIndex = new Date(year, month, 1).getDay();
+            const lastDay = new Date(year, month + 1, 0).getDate();
             
             let date = 1;
             for (let i = 0; i < 6; i++) {
@@ -506,8 +525,14 @@ document.addEventListener('DOMContentLoaded', () => {
             init: (node) => {
                 panelNode = node;
                 render();
-                panelNode.querySelector('.prev-month').onclick = () => { currentDate.setMonth(currentDate.getMonth() - 1); render(); };
-                panelNode.querySelector('.next-month').onclick = () => { currentDate.setMonth(currentDate.getMonth() + 1); render(); };
+                panelNode.querySelector('.prev-month').onclick = () => {
+                    currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
+                    render();
+                };
+                panelNode.querySelector('.next-month').onclick = () => {
+                    currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+                    render();
+                };
                 panelNode.querySelector('.sync-google').onclick = () => { googleCalendarModule.sync(calendarData, currentDate); };
                 panelNode.querySelector('.calendar tbody').onclick = (e) => {
                     if (e.target.tagName === 'TD' && e.target.dataset.dateKey) {
