@@ -9,6 +9,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/plain-draggable@2.5.14/plain-draggable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/leader-line-new@1.1.9/leader-line.min.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://apis.google.com/js/api.js" async defer></script>
 
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -114,7 +116,7 @@
             <div class="panel-content">
                 <div class="tab-content flex-grow flex flex-col" data-tab-content="word"><div class="editor-toolbar flex-shrink-0"><button onclick="document.execCommand('bold')" class="font-bold">B</button> <button onclick="document.execCommand('italic')" class="italic">I</button></div><div class="editor-container flex-grow overflow-auto" contenteditable="true"></div></div>
                 <div class="tab-content hidden flex-grow flex flex-col" data-tab-content="excel"><div class="editor-container flex-grow overflow-auto"><table class="excel-grid w-full"></table></div></div>
-                <div class="tab-content hidden flex-grow flex flex-col" data-tab-content="calendar"><div class="calendar-controls flex justify-between items-center mb-4"><button class="prev-month pro-button">&lt;</button><h3 class="month-year-display font-bold"></h3><button class="next-month pro-button">&gt;</button></div><table class="calendar w-full"><thead><tr><th>Su</th><th>Mo</th><th>Tu</th><th>We</th><th>Th</th><th>Fr</th><th>Sa</th></tr></thead><tbody></tbody></table></div>
+                <div class="tab-content hidden flex-grow flex flex-col" data-tab-content="calendar"><div class="calendar-controls flex justify-between items-center mb-4"><button class="prev-month pro-button">&lt;</button><h3 class="month-year-display font-bold"></h3><div class="flex space-x-2"><button class="sync-google pro-button">Sync</button><button class="next-month pro-button">&gt;</button></div></div><table class="calendar w-full"><thead><tr><th>Su</th><th>Mo</th><th>Tu</th><th>We</th><th>Th</th><th>Fr</th><th>Sa</th></tr></thead><tbody></tbody></table></div>
             </div>
         </div>
     </template>
@@ -153,13 +155,15 @@
             <div class="modal-tab-content" data-tab-content="notes"><div class="flex space-x-2"><input type="text" class="pro-input flex-grow" placeholder="New note..."><button class="pro-button add-item-btn" data-type="notes">+</button></div><ul class="item-list mt-2 space-y-1" data-type="notes"></ul></div>
             <div class="modal-tab-content hidden" data-tab-content="goals"><div class="flex space-x-2"><input type="text" class="pro-input flex-grow" placeholder="New goal..."><button class="pro-button add-item-btn" data-type="goals">+</button></div><ul class="item-list mt-2 space-y-1" data-type="goals"></ul></div>
             <div class="modal-tab-content hidden" data-tab-content="todos"><div class="flex space-x-2"><input type="text" class="pro-input flex-grow" placeholder="New to-do..."><button class="pro-button add-item-btn" data-type="todos">+</button></div><ul class="item-list mt-2 space-y-1" data-type="todos"></ul></div>
-            <div class="modal-tab-content hidden" data-tab-content="reminders"><div class="flex space-x-2"><input type="text" class="pro-input flex-grow" placeholder="New reminder..."><button class="pro-button add-item-btn" data-type="reminders">+</button></div><ul class="item-list mt-2 space-y-1" data-type="reminders"></ul></div>
+            <div class="modal-tab-content hidden" data-tab-content="reminders"><div class="flex space-x-2"><input type="text" class="pro-input flex-grow reminder-text" placeholder="Reminder..."><input type="datetime-local" class="pro-input reminder-time"><button class="pro-button add-item-btn" data-type="reminders">+</button></div><ul class="item-list mt-2 space-y-1" data-type="reminders"></ul></div>
         </div>
     </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-
+    if ('Notification' in window && Notification.permission !== 'granted') {
+        Notification.requestPermission();
+    }
     const workspace = document.getElementById('workspace');
     const sidebarToolsContainer = document.getElementById('sidebar-tools');
     
@@ -302,14 +306,28 @@ document.addEventListener('DOMContentLoaded', () => {
         let activeDateKey = '';
         const save = () => localStorage.setItem('calendarData', JSON.stringify(calendarData));
 
+        const scheduleReminder = (dateKey, reminder) => {
+            if (!('Notification' in window)) return;
+            const when = new Date(`${dateKey}T${reminder.time}`);
+            const timeout = when.getTime() - Date.now();
+            if (timeout > 0) {
+                setTimeout(() => {
+                    new Notification('Reminder', { body: reminder.text });
+                }, timeout);
+            }
+        };
+
         const renderItems = (type) => {
             const ul = modal.querySelector(`ul[data-type="${type}"]`);
             ul.innerHTML = '';
             const items = (calendarData[activeDateKey] && calendarData[activeDateKey][type]) ? calendarData[activeDateKey][type] : [];
-            items.forEach((itemText, index) => {
+            items.forEach((item, index) => {
                 const li = document.createElement('li');
                 li.className = 'flex justify-between items-center bg-slate-700 p-2 rounded';
-                li.textContent = itemText;
+                const display = type === 'reminders'
+                    ? `${item.text} (${new Date(item.time).toLocaleString()})`
+                    : item;
+                li.textContent = display;
                 const deleteBtn = document.createElement('button');
                 deleteBtn.className = 'text-red-400 font-bold px-2';
                 deleteBtn.innerHTML = '&times;';
@@ -322,18 +340,38 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         };
 
+        Object.entries(calendarData).forEach(([dateKey, types]) => {
+            (types.reminders || []).forEach(r => scheduleReminder(dateKey, r));
+        });
         modal.querySelectorAll('.add-item-btn').forEach(btn => {
             btn.onclick = () => {
                 const type = btn.dataset.type;
-                const input = btn.previousElementSibling;
-                if (input.value.trim()) {
-                    if (!calendarData[activeDateKey]) calendarData[activeDateKey] = {};
-                    if (!calendarData[activeDateKey][type]) calendarData[activeDateKey][type] = [];
-                    calendarData[activeDateKey][type].push(input.value.trim());
-                    input.value = '';
-                    save();
-                    renderItems(type);
-                    document.dispatchEvent(new Event('calendar:dataupdated'));
+                const container = btn.parentElement;
+                const textInput = container.querySelector('.reminder-text') || container.querySelector('input[type="text"]');
+                const timeInput = container.querySelector('.reminder-time');
+                if (type === 'reminders') {
+                    if (textInput.value.trim() && timeInput.value) {
+                        if (!calendarData[activeDateKey]) calendarData[activeDateKey] = {};
+                        if (!calendarData[activeDateKey][type]) calendarData[activeDateKey][type] = [];
+                        const reminder = { text: textInput.value.trim(), time: timeInput.value };
+                        calendarData[activeDateKey][type].push(reminder);
+                        scheduleReminder(activeDateKey, reminder);
+                        textInput.value = '';
+                        timeInput.value = '';
+                        save();
+                        renderItems(type);
+                        document.dispatchEvent(new Event('calendar:dataupdated'));
+                    }
+                } else {
+                    if (textInput.value.trim()) {
+                        if (!calendarData[activeDateKey]) calendarData[activeDateKey] = {};
+                        if (!calendarData[activeDateKey][type]) calendarData[activeDateKey][type] = [];
+                        calendarData[activeDateKey][type].push(textInput.value.trim());
+                        textInput.value = '';
+                        save();
+                        renderItems(type);
+                        document.dispatchEvent(new Event('calendar:dataupdated'));
+                    }
                 }
             };
         });
@@ -358,6 +396,64 @@ document.addEventListener('DOMContentLoaded', () => {
                 modal.classList.remove('hidden');
             }
         };
+    })();
+
+    const googleCalendarModule = (() => {
+        const CLIENT_ID = 'YOUR_CLIENT_ID';
+        const API_KEY = 'YOUR_API_KEY';
+        const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest';
+        const SCOPES = 'https://www.googleapis.com/auth/calendar.readonly';
+        let tokenClient;
+        let gapiInited = false;
+
+        const loadGapiClient = () => new Promise(resolve => {
+            gapi.load('client', async () => {
+                await gapi.client.init({ apiKey: API_KEY, discoveryDocs: [DISCOVERY_DOC] });
+                gapiInited = true;
+                resolve();
+            });
+        });
+
+        const sync = async (calendarData, currentDate) => {
+            if (!gapiInited) await loadGapiClient();
+            if (!tokenClient) {
+                tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: CLIENT_ID,
+                    scope: SCOPES,
+                    callback: ''
+                });
+            }
+            tokenClient.callback = async (resp) => {
+                if (resp.error) return;
+                const start = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString();
+                const end = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).toISOString();
+                const events = await gapi.client.calendar.events.list({
+                    calendarId: 'primary',
+                    timeMin: start,
+                    timeMax: end,
+                    showDeleted: false,
+                    singleEvents: true,
+                    orderBy: 'startTime'
+                });
+                events.result.items.forEach(ev => {
+                    const dateStr = ev.start.date || ev.start.dateTime.split('T')[0];
+                    const parts = dateStr.split('-').map(Number);
+                    const dateKey = `${parts[0]}-${parts[1]}-${parts[2]}`;
+                    if (!calendarData[dateKey]) calendarData[dateKey] = {};
+                    if (!calendarData[dateKey].events) calendarData[dateKey].events = [];
+                    calendarData[dateKey].events.push(ev.summary || 'Event');
+                });
+                localStorage.setItem('calendarData', JSON.stringify(calendarData));
+                document.dispatchEvent(new Event('calendar:dataupdated'));
+            };
+            if (gapi.client.getToken() === null) {
+                tokenClient.requestAccessToken({ prompt: 'consent' });
+            } else {
+                tokenClient.requestAccessToken({ prompt: '' });
+            }
+        };
+
+        return { sync };
     })();
 
     // --- Calendar Module ---
@@ -409,6 +505,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 render();
                 panelNode.querySelector('.prev-month').onclick = () => { currentDate.setMonth(currentDate.getMonth() - 1); render(); };
                 panelNode.querySelector('.next-month').onclick = () => { currentDate.setMonth(currentDate.getMonth() + 1); render(); };
+                panelNode.querySelector('.sync-google').onclick = () => { googleCalendarModule.sync(calendarData, currentDate); };
                 panelNode.querySelector('.calendar tbody').onclick = (e) => {
                     if (e.target.tagName === 'TD' && e.target.dataset.dateKey) {
                         dayDashboardModule.show(e.target.dataset.dateKey);
