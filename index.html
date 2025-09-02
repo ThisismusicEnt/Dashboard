@@ -389,6 +389,18 @@ document.addEventListener('DOMContentLoaded', () => {
             nodeEl.style.left = `${nodeData.x}px`;
             nodeEl.style.top = `${nodeData.y}px`;
             nodeEl.textContent = nodeData.text;
+            const deleteBtn = document.createElement('div');
+            deleteBtn.className = 'delete-node';
+            deleteBtn.textContent = '×';
+            deleteBtn.onclick = (e) => {
+                e.stopPropagation();
+                wrapper.removeChild(nodeEl);
+                nodes = nodes.filter(n => n.id !== nodeData.id);
+                connectors = connectors.filter(c => c.from !== nodeData.id && c.to !== nodeData.id);
+                drawConnectors();
+                save();
+            };
+            nodeEl.appendChild(deleteBtn);
             wrapper.appendChild(nodeEl);
             
             new PlainDraggable(nodeEl, {
@@ -462,9 +474,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 wrapper.addEventListener('dblclick', (e) => {
                     if (e.target.classList.contains('mapper-node')) {
-                        const newText = prompt('Enter new text:', e.target.textContent);
+                        const newText = prompt('Enter new text:', e.target.firstChild.textContent);
                         if (newText !== null && newText.trim() !== '') {
-                            e.target.textContent = newText;
+                            e.target.firstChild.textContent = newText;
                             nodes.find(n => n.id === e.target.id).text = newText;
                             save();
                         }
