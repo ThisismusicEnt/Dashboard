@@ -219,7 +219,77 @@ document.addEventListener('DOMContentLoaded', () => {
                     contents.forEach(c => c.classList.toggle('hidden', c.dataset.tabContent !== tabName));
                 }
             });
-            excelModule.init(panelNode.querySelector('.excel-grid'));
+
+            const toolbar = panelNode.querySelector('.file-toolbar');
+            const wordEditor = panelNode.querySelector('[data-tab-content="word"] .editor-container');
+            const excelGrid = panelNode.querySelector('.excel-grid');
+            const activeTab = () => panelNode.querySelector('.editor-tabs .active').dataset.tab;
+
+            toolbar.querySelector('.file-new').onclick = () => {
+                const tab = activeTab();
+                if (tab === 'word') {
+                    wordEditor.innerHTML = '';
+                } else if (tab === 'excel') {
+                    excelGrid.querySelectorAll('td').forEach(td => td.textContent = '');
+                }
+            };
+
+            toolbar.querySelector('.file-save').onclick = () => {
+                const tab = activeTab();
+                if (tab === 'word') {
+                    const blob = new Blob([wordEditor.innerHTML], { type: 'text/html' });
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = 'document.html';
+                    a.click();
+                    URL.revokeObjectURL(a.href);
+                } else if (tab === 'excel') {
+                    const rows = [];
+                    excelGrid.querySelectorAll('tr').forEach((tr, idx) => {
+                        if (idx === 0) return;
+                        const cols = [];
+                        tr.querySelectorAll('td').forEach(td => cols.push(td.textContent));
+                        rows.push(cols.join(','));
+                    });
+                    const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = 'sheet.csv';
+                    a.click();
+                    URL.revokeObjectURL(a.href);
+                }
+            };
+
+            toolbar.querySelector('.file-open').onclick = () => {
+                const tab = activeTab();
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = tab === 'word' ? '.txt,.html' : '.csv';
+                input.onchange = e => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = ev => {
+                        if (tab === 'word') {
+                            wordEditor.innerHTML = ev.target.result;
+                        } else if (tab === 'excel') {
+                            const lines = ev.target.result.split(/\r?\n/);
+                            excelGrid.querySelectorAll('tr').forEach((tr, rIdx) => {
+                                if (rIdx === 0) return;
+                                const cells = lines[rIdx - 1] ? lines[rIdx - 1].split(',') : [];
+                                tr.querySelectorAll('td').forEach((td, cIdx) => td.textContent = cells[cIdx] || '');
+                            });
+                        }
+                    };
+                    reader.readAsText(file);
+                };
+                input.click();
+            };
+
+            toolbar.querySelector('.file-undo').onclick = () => document.execCommand('undo');
+            toolbar.querySelector('.file-redo').onclick = () => document.execCommand('redo');
+
+            excelModule.init(excelGrid);
             calendarModule.init(panelNode);
         },
         'idea-mapper': (panelNode) => ideaMapperModule.init(panelNode),
