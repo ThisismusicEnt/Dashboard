@@ -66,7 +66,7 @@
         .main-tab.active { color: var(--accent-yellow); border-bottom-color: var(--accent-yellow); }
 
         /* Idea Mapper Styles */
-        .idea-mapper-wrapper { position: relative; overflow: hidden; background-color: var(--bg-primary); border-radius: 0.5rem; border: 1px solid var(--border-color); }
+        .idea-mapper-wrapper { position: relative; overflow: visible; background-color: var(--bg-primary); border-radius: 0.5rem; border: 1px solid var(--border-color); }
         .mapper-node {
             position: absolute;
             background: linear-gradient(135deg, rgba(42,42,42,0.6), rgba(30,30,30,0.6));
@@ -92,6 +92,16 @@
 
         .file-toolbar { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; flex-shrink: 0; }
         .file-toolbar button { background-color: #334155; padding: 0.25rem 0.75rem; font-size: 0.75rem; border-radius: 0.375rem; }
+
+        /* Calendar Styles */
+        .calendar { border-collapse: collapse; width: 100%; }
+        .calendar th, .calendar td { text-align: center; padding: 0.5rem; border: 1px solid var(--border-color); }
+        .calendar td.has-note { background-color: rgba(250, 204, 21, 0.15); position: relative; }
+        .calendar td.today { outline: 2px solid var(--accent-yellow); }
+
+        /* Day Modal */
+        .modal-overlay { background-color: rgba(0,0,0,0.6); }
+        .modal-content { background-color: var(--bg-panel); }
 
         ::-webkit-scrollbar { width: 8px; } ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
@@ -205,7 +215,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 switch (tool.id) {
                     case 'quick-note':
-                        content.innerHTML = `<div class="note-wrapper h-32 bg-slate-700 rounded-md overflow-hidden"><div class="note h-full"><textarea class="note-textarea w-full h-full bg-transparent border-none focus:outline-none resize-none p-2" placeholder="Type..."></textarea></div></div><button class="save-note-btn pro-button w-full mt-2">Save</button>`;
+                        content.innerHTML = `<div class="note-wrapper h-32 bg-slate-700 rounded-md overflow-hidden"><div class="note h-full"><textarea class="note-textarea w-full h-full bg-transparent border-none focus:outline-none resize-none p-2" placeholder="Type..."></textarea></div></div><button class="save-note-btn pro-button w-full mt-2">Save</button><ul class="saved-notes mt-2 space-y-1 text-xs"></ul>`;
                         quickNoteModule.init(toolNode);
                         break;
                     case 'calculator':
@@ -586,7 +596,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Idea Mapper Module (using libraries) ---
     const ideaMapperModule = (() => {
-        let wrapper, nodes = [], connectors = [], lines = [];
+        let wrapper, panelRef, nodes = [], connectors = [], lines = [];
         let history = [], future = [];
         let state = { connecting: false, startNode: null };
 
@@ -614,7 +624,28 @@ document.addEventListener('DOMContentLoaded', () => {
             nodeEl.className = 'mapper-node';
             nodeEl.style.left = `${nodeData.x}px`;
             nodeEl.style.top = `${nodeData.y}px`;
-            nodeEl.textContent = nodeData.text;
+            nodeEl.innerHTML = `<div class="node-text" contenteditable="true">${nodeData.text}</div>`;
+            const textEl = nodeEl.querySelector('.node-text');
+            textEl.addEventListener('click', e => e.stopPropagation());
+            textEl.addEventListener('input', () => {
+                const node = nodes.find(n => n.id === nodeData.id);
+                if (node) { node.text = textEl.textContent; save(); }
+            });
+
+            nodeEl.addEventListener('click', () => {
+                if (state.connecting) {
+                    if (!state.startNode) {
+                        state.startNode = nodeEl;
+                        nodeEl.style.boxShadow = '0 0 0 3px #34d399';
+                    } else if (state.startNode !== nodeEl) {
+                        pushState();
+                        connectors.push({ from: state.startNode.id, to: nodeEl.id });
+                        drawConnectors(); save();
+                        panelRef.querySelector('.connect-node-btn').click();
+                    }
+                }
+            });
+
             const deleteBtn = document.createElement('div');
             deleteBtn.className = 'delete-node';
             deleteBtn.textContent = '×';
@@ -629,7 +660,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             nodeEl.appendChild(deleteBtn);
             wrapper.appendChild(nodeEl);
-            
+
             new PlainDraggable(nodeEl, {
                 containment: wrapper,
                 onDragStart: () => pushState(),
@@ -665,6 +696,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         return {
             init: (panelNode) => {
+                panelRef = panelNode;
                 wrapper = panelNode.querySelector('.idea-mapper-wrapper');
                 const toolbar = panelNode.querySelector('.file-toolbar');
                 panelNode.querySelector('.add-node-btn').onclick = () => {
@@ -743,30 +775,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     render();
                     save();
                 };
-                wrapper.addEventListener('click', (e) => {
-                    if (state.connecting && e.target.classList.contains('mapper-node')) {
-                        if (!state.startNode) {
-                            state.startNode = e.target;
-                            e.target.style.boxShadow = '0 0 0 3px #34d399';
-                        } else if (state.startNode !== e.target) {
-                            pushState();
-                            connectors.push({ from: state.startNode.id, to: e.target.id });
-                            drawConnectors(); save();
-                            panelNode.querySelector('.connect-node-btn').click();
-                        }
-                    }
-                });
-                wrapper.addEventListener('dblclick', (e) => {
-                    if (e.target.classList.contains('mapper-node')) {
-                        const newText = prompt('Enter new text:', e.target.firstChild.textContent);
-                        if (newText !== null && newText.trim() !== '') {
-                            pushState();
-                            e.target.firstChild.textContent = newText;
-                            nodes.find(n => n.id === e.target.id).text = newText;
-                            save();
-                        }
-                    }
-                });
                 load();
             }
         };
@@ -787,18 +795,26 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     } };
     const quickNoteModule = { init: (node) => {
+        const list = node.querySelector('.saved-notes');
+        const textarea = node.querySelector('.note-textarea');
+        const load = () => {
+            const notes = JSON.parse(localStorage.getItem('quickNotes')) || [];
+            list.innerHTML = '';
+            notes.forEach((n, i) => {
+                const li = document.createElement('li');
+                li.textContent = n;
+                li.className = 'bg-slate-800 p-1 rounded';
+                list.appendChild(li);
+            });
+        };
+        load();
         node.querySelector('.save-note-btn').onclick = () => {
-            const wrapper = node.querySelector('.note-wrapper'), current = wrapper.querySelector('.note');
-            if (wrapper.querySelector('textarea').value.trim() === '') return;
-            current.classList.add('saved');
-            setTimeout(() => {
-                current.remove();
-                const newNote = document.createElement('div');
-                newNote.className = 'note';
-                newNote.innerHTML = `<textarea class="note-textarea w-full h-full bg-transparent border-none focus:outline-none resize-none p-2" placeholder="Type..."></textarea>`;
-                wrapper.appendChild(newNote);
-                newNote.querySelector('textarea').focus();
-            }, 500);
+            if (textarea.value.trim() === '') return;
+            const notes = JSON.parse(localStorage.getItem('quickNotes')) || [];
+            notes.push(textarea.value.trim());
+            localStorage.setItem('quickNotes', JSON.stringify(notes));
+            textarea.value = '';
+            load();
         };
     } };
     const calculatorModule = { init: (node) => {
