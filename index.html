@@ -6,9 +6,6 @@
     <title>Dashboard Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/plain-draggable@2.5.14/plain-draggable.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/leader-line-new@1.1.9/leader-line.min.js"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://apis.google.com/js/api.js" async defer></script>
 
@@ -65,39 +62,16 @@
         .main-tab { border-bottom: 2px solid transparent; }
         .main-tab.active { color: var(--accent-yellow); border-bottom-color: var(--accent-yellow); }
 
-        /* Idea Mapper Styles */
-        .idea-mapper-wrapper { position: relative; overflow: visible; background-color: var(--bg-primary); border-radius: 0.5rem; border: 1px solid var(--border-color); }
-        .mapper-node {
-            position: absolute;
-            background: linear-gradient(135deg, rgba(42,42,42,0.6), rgba(30,30,30,0.6));
-            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-            color: white; padding: 0.75rem 1.5rem; border-radius: 0.75rem;
-            cursor: grab; user-select: none; min-width: 150px; text-align: center;
-            border: 1px solid rgba(250, 204, 21, 0.3);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-            z-index: 10;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-        .mapper-node:hover { transform: scale(1.05); box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5); }
-        .mapper-node:active { cursor: grabbing; z-index: 11; }
-        .mapper-node .delete-node {
-            position: absolute; top: -8px; right: -8px; width: 20px; height: 20px;
-            background-color: #ef4444; color: white; border-radius: 50%;
-            display: none; align-items: center; justify-content: center;
-            cursor: pointer; font-size: 14px; line-height: 20px;
-            border: 2px solid var(--bg-panel);
-        }
-        .mapper-node:hover .delete-node { display: flex; }
-        .leader-line { z-index: 5; }
-
         .file-toolbar { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; flex-shrink: 0; }
         .file-toolbar button { background-color: #334155; padding: 0.25rem 0.75rem; font-size: 0.75rem; border-radius: 0.375rem; }
 
         /* Calendar Styles */
-        .calendar { border-collapse: collapse; width: 100%; }
-        .calendar th, .calendar td { text-align: center; padding: 0.5rem; border: 1px solid var(--border-color); }
-        .calendar td.has-note { background-color: rgba(250, 204, 21, 0.15); position: relative; }
-        .calendar td.today { outline: 2px solid var(--accent-yellow); }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
+        .calendar-grid div { text-align: center; padding: 0.5rem; border: 1px solid var(--border-color); }
+        .calendar-grid div.has-note { background-color: rgba(250, 204, 21, 0.15); }
+        .calendar-grid div.today { outline: 2px solid var(--accent-yellow); }
+
+        .file-list li { cursor: pointer; }
 
         /* Day Modal */
         .modal-overlay { background-color: rgba(0,0,0,0.6); }
@@ -111,19 +85,20 @@
 
     <div id="sidebar" class="fixed top-0 left-0 h-full w-72 bg-slate-900/80 backdrop-blur-lg p-4 transform -translate-x-full md:translate-x-0 flex flex-col">
         <h1 class="text-2xl font-bold mb-6 text-yellow-300">Dashboard Pro</h1>
+        <button id="sidebar-close" class="md:hidden absolute top-4 right-4 p-2 bg-slate-800 rounded-md">&times;</button>
         <div id="sidebar-tools" class="flex-grow overflow-y-auto space-y-4">
             <!-- Sidebar widgets will be injected here -->
         </div>
     </div>
 
     <div id="main-content" class="md:ml-72 h-full flex flex-col p-4">
-        <button id="sidebar-toggle" class="md:hidden fixed top-4 left-4 z-50 p-2 bg-slate-800 rounded-md">
+        <button id="sidebar-toggle" class="md:hidden fixed top-4 left-4 z-40 p-2 bg-slate-800 rounded-md">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
         </button>
         <div class="flex-shrink-0 mb-4">
             <div class="flex space-x-4 border-b border-gray-700">
                 <button id="editor-suite-tab-btn" class="main-tab py-2 px-4 text-lg font-semibold active">Editor</button>
-                <button id="idea-mapper-tab-btn" class="main-tab py-2 px-4 text-lg font-semibold">Mapper</button>
+                <button id="files-tab-btn" class="main-tab py-2 px-4 text-lg font-semibold">Files</button>
             </div>
         </div>
         <div id="workspace" class="flex-grow relative">
@@ -144,18 +119,27 @@
             <div class="panel-content">
                 <div class="tab-content flex-grow flex flex-col" data-tab-content="word"><div class="editor-toolbar flex-shrink-0"><button onclick="document.execCommand('bold')" class="font-bold">B</button> <button onclick="document.execCommand('italic')" class="italic">I</button></div><div class="editor-container flex-grow overflow-auto" contenteditable="true"></div></div>
                 <div class="tab-content hidden flex-grow flex flex-col" data-tab-content="excel"><div class="editor-container flex-grow overflow-auto"><table class="excel-grid w-full"></table></div></div>
-                <div class="tab-content hidden flex-grow flex flex-col" data-tab-content="calendar"><div class="calendar-controls flex justify-between items-center mb-4"><button class="prev-month pro-button">&lt;</button><h3 class="month-year-display font-bold"></h3><div class="flex space-x-2"><button class="sync-google pro-button">Sync</button><button class="next-month pro-button">&gt;</button></div></div><table class="calendar w-full"><thead><tr><th>Su</th><th>Mo</th><th>Tu</th><th>We</th><th>Th</th><th>Fr</th><th>Sa</th></tr></thead><tbody></tbody></table></div>
+                <div class="tab-content hidden flex-grow flex flex-col" data-tab-content="calendar"><div class="calendar-controls flex justify-between items-center mb-4"><button class="prev-month pro-button">&lt;</button><h3 class="month-year-display font-bold"></h3><div class="flex space-x-2"><button class="sync-google pro-button">Sync</button><button class="next-month pro-button">&gt;</button></div></div><div class="calendar-grid w-full text-sm"></div></div>
             </div>
         </div>
     </template>
-    
-    <template id="panel-template-idea-mapper">
+
+    <template id="panel-template-files">
         <div class="panel h-full">
-            <h2 class="panel-title"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12,2C6.5,2,2,6.5,2,12S6.5,22,12,22,22,17.5,22,12,17.5,2,12,2M10,16.5V7.5L16,12L10,16.5Z"></path></svg>Idea Mapper</h2>
-            <div class="file-toolbar"><button class="file-new">New</button><button class="file-save">Save</button><button class="file-open">Open</button><button class="file-undo">Undo</button><button class="file-redo">Redo</button></div>
-            <div class="panel-content flex flex-col">
-                <div class="mb-2 flex space-x-2 items-center flex-shrink-0"><button class="add-node-btn pro-button text-sm">Add Box</button><button class="connect-node-btn pro-button text-sm bg-slate-600">Connect</button><button class="save-map-btn pro-button text-sm bg-teal-600">Save as Image</button></div>
-                <div class="idea-mapper-wrapper flex-grow"></div>
+            <h2 class="panel-title">File Manager</h2>
+            <div class="panel-content flex h-full">
+                <ul class="file-list w-1/3 pr-2 border-r overflow-y-auto space-y-1"></ul>
+                <div class="flex-1 flex flex-col pl-2">
+                    <input class="file-name pro-input mb-2" placeholder="File name">
+                    <div class="editor-container flex-grow overflow-auto bg-slate-800 p-2 rounded" contenteditable="true"></div>
+                    <div class="flex space-x-2 mt-2 flex-shrink-0">
+                        <button class="save-file pro-button">Save</button>
+                        <button class="delete-file pro-button bg-red-600">Delete</button>
+                        <button class="download-file pro-button bg-teal-600">Download</button>
+                        <button class="print-file pro-button bg-blue-600">Print</button>
+                    </div>
+                    <div class="h-40 mt-4"><canvas class="file-chart"></canvas></div>
+                </div>
             </div>
         </div>
     </template>
@@ -256,9 +240,13 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         document.getElementById('editor-suite-tab-btn').onclick = () => setActiveTab('editor-suite');
-        document.getElementById('idea-mapper-tab-btn').onclick = () => setActiveTab('idea-mapper');
-        document.getElementById('sidebar-toggle').addEventListener('click', () => document.getElementById('sidebar').classList.toggle('-translate-x-full'));
-        
+        document.getElementById('files-tab-btn').onclick = () => setActiveTab('files');
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebar-toggle');
+        const sidebarClose = document.getElementById('sidebar-close');
+        sidebarToggle.addEventListener('click', () => { sidebar.classList.remove('-translate-x-full'); sidebarToggle.classList.add('hidden'); });
+        sidebarClose.addEventListener('click', () => { sidebar.classList.add('-translate-x-full'); sidebarToggle.classList.remove('hidden'); });
+
         return { init: () => { renderSidebarTools(); setActiveTab('editor-suite'); } };
     })();
 
@@ -348,7 +336,7 @@ document.addEventListener('DOMContentLoaded', () => {
             excelModule.init(excelGrid);
             calendarModule.init(panelNode);
         },
-        'idea-mapper': (panelNode) => ideaMapperModule.init(panelNode),
+        'files': (panelNode) => fileManagerModule.init(panelNode),
     };
     
     // --- Day Dashboard Modal Module ---
@@ -520,37 +508,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const render = () => {
             load();
-            const calendarBody = panelNode.querySelector('.calendar tbody');
+            const grid = panelNode.querySelector('.calendar-grid');
             const monthYearDisplay = panelNode.querySelector('.month-year-display');
-            if (!calendarBody || !monthYearDisplay) return;
+            if (!grid || !monthYearDisplay) return;
 
-            calendarBody.innerHTML = '';
+            grid.innerHTML = '';
             const month = currentDate.getMonth(), year = currentDate.getFullYear();
             monthYearDisplay.textContent = `${currentDate.toLocaleString('default', { month: 'long' })} ${year}`;
             const firstDayIndex = new Date(year, month, 1).getDay();
             const lastDay = new Date(year, month + 1, 0).getDate();
-            
-            let date = 1;
-            for (let i = 0; i < 6; i++) {
-                const row = document.createElement('tr');
-                for (let j = 0; j < 7; j++) {
-                    const cell = document.createElement('td');
-                    if (i === 0 && j < firstDayIndex || date > lastDay) { /* empty */ } 
-                    else {
-                        const dateKey = `${year}-${month + 1}-${date}`;
-                        cell.textContent = date; cell.dataset.dateKey = dateKey;
-                        if (calendarData[dateKey] && Object.values(calendarData[dateKey]).some(arr => arr.length > 0)) {
-                            cell.classList.add('has-note');
-                        }
-                        if (date === new Date().getDate() && month === new Date().getMonth() && year === new Date().getFullYear()) {
-                            cell.classList.add('today');
-                        }
-                        date++;
-                    }
-                    row.appendChild(cell);
+
+            const days = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+            days.forEach(d => { const head = document.createElement('div'); head.className = 'font-bold'; head.textContent = d; grid.appendChild(head); });
+            for (let i = 0; i < firstDayIndex; i++) grid.appendChild(document.createElement('div'));
+            for (let date = 1; date <= lastDay; date++) {
+                const cell = document.createElement('div');
+                const dateKey = `${year}-${month + 1}-${date}`;
+                cell.textContent = date; cell.dataset.dateKey = dateKey;
+                if (calendarData[dateKey] && Object.values(calendarData[dateKey]).some(arr => arr.length > 0)) {
+                    cell.classList.add('has-note');
                 }
-                calendarBody.appendChild(row);
-                if (date > lastDay) break;
+                if (date === new Date().getDate() && month === new Date().getMonth() && year === new Date().getFullYear()) {
+                    cell.classList.add('today');
+                }
+                grid.appendChild(cell);
             }
         };
 
@@ -567,8 +548,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     render();
                 };
                 panelNode.querySelector('.sync-google').onclick = () => { googleCalendarModule.sync(calendarData, currentDate); };
-                panelNode.querySelector('.calendar tbody').onclick = (e) => {
-                    if (e.target.tagName === 'TD' && e.target.dataset.dateKey) {
+                panelNode.querySelector('.calendar-grid').onclick = (e) => {
+                    if (e.target.dataset.dateKey) {
                         dayDashboardModule.show(e.target.dataset.dateKey);
                     }
                 };
@@ -594,193 +575,98 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // --- Idea Mapper Module (using libraries) ---
-    const ideaMapperModule = (() => {
-        let wrapper, panelRef, nodes = [], connectors = [], lines = [];
-        let history = [], future = [];
-        let state = { connecting: false, startNode: null };
-
-        const pushState = () => {
-            history.push(JSON.stringify({ nodes, connectors }));
-            if (history.length > 50) history.shift();
-            future = [];
+    // --- File Manager Module ---
+    const fileManagerModule = (() => {
+        let files = [], list, nameInput, editor, chart, chartCtx;
+        const save = () => localStorage.setItem('savedFiles', JSON.stringify(files));
+        const load = () => { files = JSON.parse(localStorage.getItem('savedFiles')) || []; };
+        const renderList = () => {
+            list.innerHTML = '';
+            files.forEach(f => {
+                const li = document.createElement('li');
+                li.className = 'p-2 bg-slate-700 rounded';
+                li.textContent = f.name;
+                li.dataset.id = f.id;
+                list.appendChild(li);
+            });
+            updateChart();
         };
-
-        const save = () => localStorage.setItem('mapperData', JSON.stringify({ nodes, connectors }));
-        const load = () => {
-            const data = JSON.parse(localStorage.getItem('mapperData'));
-            if (data && data.nodes && data.nodes.length) {
-                nodes = data.nodes; connectors = data.connectors || [];
-            } else {
-                nodes = [{ id: `node-${Date.now()}`, x: 50, y: 50, text: 'Start Here' }];
+        const updateChart = () => {
+            if (!chartCtx) return;
+            if (chart) chart.destroy();
+            chart = new Chart(chartCtx, {
+                type: 'bar',
+                data: { labels: files.map(f => f.name), datasets: [{ label: 'Characters', data: files.map(f => f.content.length), backgroundColor: 'rgba(250,204,21,0.5)' }] },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        };
+        const openFile = (id) => {
+            const f = files.find(x => x.id === id);
+            if (f) {
+                nameInput.value = f.name;
+                editor.innerHTML = f.content;
+                editor.dataset.id = id;
             }
-            render();
-            pushState();
         };
-        
-        const addNode = (nodeData) => {
-            const nodeEl = document.createElement('div');
-            nodeEl.id = nodeData.id;
-            nodeEl.className = 'mapper-node';
-            nodeEl.style.left = `${nodeData.x}px`;
-            nodeEl.style.top = `${nodeData.y}px`;
-            nodeEl.innerHTML = `<div class="node-text" contenteditable="true">${nodeData.text}</div>`;
-            const textEl = nodeEl.querySelector('.node-text');
-            textEl.addEventListener('click', e => e.stopPropagation());
-            textEl.addEventListener('input', () => {
-                const node = nodes.find(n => n.id === nodeData.id);
-                if (node) { node.text = textEl.textContent; save(); }
-            });
-
-            nodeEl.addEventListener('click', () => {
-                if (state.connecting) {
-                    if (!state.startNode) {
-                        state.startNode = nodeEl;
-                        nodeEl.style.boxShadow = '0 0 0 3px #34d399';
-                    } else if (state.startNode !== nodeEl) {
-                        pushState();
-                        connectors.push({ from: state.startNode.id, to: nodeEl.id });
-                        drawConnectors(); save();
-                        panelRef.querySelector('.connect-node-btn').click();
-                    }
-                }
-            });
-
-            const deleteBtn = document.createElement('div');
-            deleteBtn.className = 'delete-node';
-            deleteBtn.textContent = '×';
-            deleteBtn.onclick = (e) => {
-                e.stopPropagation();
-                pushState();
-                wrapper.removeChild(nodeEl);
-                nodes = nodes.filter(n => n.id !== nodeData.id);
-                connectors = connectors.filter(c => c.from !== nodeData.id && c.to !== nodeData.id);
-                drawConnectors();
-                save();
-            };
-            nodeEl.appendChild(deleteBtn);
-            wrapper.appendChild(nodeEl);
-
-            new PlainDraggable(nodeEl, {
-                containment: wrapper,
-                onDragStart: () => pushState(),
-                onMove: () => lines.forEach(l => l.position()),
-                onDragEnd: (e) => {
-                    const node = nodes.find(n => n.id === e.target.id);
-                    if (node) {
-                        node.x = e.left;
-                        node.y = e.top;
-                        save();
-                    }
-                }
-            });
-        };
-
-        const render = () => {
-            if (!wrapper) return;
-            wrapper.innerHTML = ''; // Clear previous nodes
-            lines.forEach(line => line.remove()); lines = [];
-            nodes.forEach(addNode);
-            drawConnectors();
-        };
-
-        const drawConnectors = () => {
-            lines.forEach(line => line.remove()); lines = [];
-            connectors.forEach(conn => {
-                const from = document.getElementById(conn.from), to = document.getElementById(conn.to);
-                if (from && to) {
-                    lines.push(new LeaderLine(from, to, { color: '#94a3b8', size: 2, path: 'straight', startSocket: 'auto', endSocket: 'auto' }));
-                }
-            });
-        };
-
         return {
             init: (panelNode) => {
-                panelRef = panelNode;
-                wrapper = panelNode.querySelector('.idea-mapper-wrapper');
-                const toolbar = panelNode.querySelector('.file-toolbar');
-                panelNode.querySelector('.add-node-btn').onclick = () => {
-                    pushState();
-                    const newNodeData = { id: `node-${Date.now()}`, x: 20, y: 20, text: 'New Idea' };
-                    nodes.push(newNodeData);
-                    addNode(newNodeData);
-                    save();
-                };
-                panelNode.querySelector('.connect-node-btn').onclick = (e) => {
-                    state.connecting = !state.connecting;
-                    e.target.classList.toggle('bg-green-500', state.connecting);
-                    e.target.classList.toggle('bg-slate-600', !state.connecting);
-                    if (!state.connecting && state.startNode) {
-                        state.startNode.style.boxShadow = ''; state.startNode = null;
+                list = panelNode.querySelector('.file-list');
+                nameInput = panelNode.querySelector('.file-name');
+                editor = panelNode.querySelector('.editor-container');
+                chartCtx = panelNode.querySelector('.file-chart').getContext('2d');
+                const saveBtn = panelNode.querySelector('.save-file');
+                const deleteBtn = panelNode.querySelector('.delete-file');
+                const downloadBtn = panelNode.querySelector('.download-file');
+                const printBtn = panelNode.querySelector('.print-file');
+                load();
+                renderList();
+                list.addEventListener('click', e => { if (e.target.dataset.id) openFile(e.target.dataset.id); });
+                saveBtn.onclick = () => {
+                    const name = nameInput.value.trim() || 'Untitled';
+                    const content = editor.innerHTML;
+                    const id = editor.dataset.id;
+                    if (id) {
+                        const f = files.find(x => x.id === id);
+                        if (f) { f.name = name; f.content = content; }
+                    } else {
+                        files.push({ id: Date.now().toString(), name, content });
+                        editor.dataset.id = files[files.length - 1].id;
                     }
-                };
-                panelNode.querySelector('.save-map-btn').onclick = () => {
-                    html2canvas(wrapper, { backgroundColor: '#1e293b' }).then(canvas => {
-                        const link = document.createElement('a');
-                        link.download = 'idea-map.png';
-                        link.href = canvas.toDataURL('image/png');
-                        link.click();
-                    });
-                };
-                toolbar.querySelector('.file-new').onclick = () => {
-                    pushState();
-                    nodes = [{ id: `node-${Date.now()}`, x: 50, y: 50, text: 'Start Here' }];
-                    connectors = [];
-                    render();
                     save();
+                    renderList();
                 };
-                toolbar.querySelector('.file-save').onclick = () => {
-                    const blob = new Blob([JSON.stringify({ nodes, connectors })], { type: 'application/json' });
+                deleteBtn.onclick = () => {
+                    const id = editor.dataset.id;
+                    if (!id) return;
+                    files = files.filter(f => f.id !== id);
+                    editor.dataset.id = '';
+                    nameInput.value = '';
+                    editor.innerHTML = '';
+                    save();
+                    renderList();
+                };
+                downloadBtn.onclick = () => {
+                    const name = nameInput.value.trim() || 'file';
+                    const blob = new Blob([editor.innerHTML], { type: 'text/html' });
                     const a = document.createElement('a');
                     a.href = URL.createObjectURL(blob);
-                    a.download = 'idea-map.json';
+                    a.download = `${name}.html`;
                     a.click();
                     URL.revokeObjectURL(a.href);
                 };
-                toolbar.querySelector('.file-open').onclick = () => {
-                    const input = document.createElement('input');
-                    input.type = 'file';
-                    input.accept = '.json';
-                    input.onchange = e => {
-                        const file = e.target.files[0];
-                        if (!file) return;
-                        const reader = new FileReader();
-                        reader.onload = ev => {
-                            pushState();
-                            const data = JSON.parse(ev.target.result);
-                            nodes = data.nodes || [];
-                            connectors = data.connectors || [];
-                            render();
-                            save();
-                        };
-                        reader.readAsText(file);
-                    };
-                    input.click();
+                printBtn.onclick = () => {
+                    const w = window.open('', '', 'width=800,height=600');
+                    w.document.write(editor.innerHTML);
+                    w.document.close();
+                    w.print();
+                    w.close();
                 };
-                toolbar.querySelector('.file-undo').onclick = () => {
-                    if (!history.length) return;
-                    future.push(JSON.stringify({ nodes, connectors }));
-                    const prev = JSON.parse(history.pop());
-                    nodes = prev.nodes || [];
-                    connectors = prev.connectors || [];
-                    render();
-                    save();
-                };
-                toolbar.querySelector('.file-redo').onclick = () => {
-                    if (!future.length) return;
-                    history.push(JSON.stringify({ nodes, connectors }));
-                    const next = JSON.parse(future.pop());
-                    nodes = next.nodes || [];
-                    connectors = next.connectors || [];
-                    render();
-                    save();
-                };
-                load();
             }
         };
     })();
 
     // --- Other Modules ---
+
     const quickLinksModule = { init: (node) => {
         node.querySelector('.add-link-btn').onclick = () => {
             const nameEl = node.querySelector('.link-name'), urlEl = node.querySelector('.link-url');
@@ -797,25 +683,54 @@ document.addEventListener('DOMContentLoaded', () => {
     const quickNoteModule = { init: (node) => {
         const list = node.querySelector('.saved-notes');
         const textarea = node.querySelector('.note-textarea');
+        let editId = null;
         const load = () => {
             const notes = JSON.parse(localStorage.getItem('quickNotes')) || [];
             list.innerHTML = '';
-            notes.forEach((n, i) => {
+            notes.forEach(n => {
                 const li = document.createElement('li');
-                li.textContent = n;
-                li.className = 'bg-slate-800 p-1 rounded';
+                li.className = 'bg-slate-800 p-1 rounded flex justify-between items-center';
+                const span = document.createElement('span');
+                span.textContent = n.text;
+                li.appendChild(span);
+                const actions = document.createElement('div');
+                const editBtn = document.createElement('button');
+                editBtn.className = 'text-blue-400 text-xs mr-1';
+                editBtn.textContent = 'Edit';
+                editBtn.onclick = () => { textarea.value = n.text; editId = n.id; };
+                const delBtn = document.createElement('button');
+                delBtn.className = 'text-red-400 text-xs';
+                delBtn.textContent = 'Del';
+                delBtn.onclick = () => {
+                    const notes = JSON.parse(localStorage.getItem('quickNotes')) || [];
+                    const idx = notes.findIndex(x => x.id === n.id);
+                    if (idx > -1) { notes.splice(idx, 1); localStorage.setItem('quickNotes', JSON.stringify(notes)); }
+                    if (editId === n.id) { editId = null; textarea.value = ''; }
+                    load();
+                };
+                actions.appendChild(editBtn);
+                actions.appendChild(delBtn);
+                li.appendChild(actions);
                 list.appendChild(li);
             });
         };
-        load();
-        node.querySelector('.save-note-btn').onclick = () => {
-            if (textarea.value.trim() === '') return;
+        const save = () => {
+            const text = textarea.value.trim();
+            if (!text) return;
             const notes = JSON.parse(localStorage.getItem('quickNotes')) || [];
-            notes.push(textarea.value.trim());
+            if (editId) {
+                const note = notes.find(n => n.id === editId);
+                if (note) note.text = text;
+                editId = null;
+            } else {
+                notes.push({ id: Date.now(), text });
+            }
             localStorage.setItem('quickNotes', JSON.stringify(notes));
             textarea.value = '';
             load();
         };
+        node.querySelector('.save-note-btn').onclick = save;
+        load();
     } };
     const calculatorModule = { init: (node) => {
         const display = node.querySelector('.calculator-display');
